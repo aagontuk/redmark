@@ -49,8 +49,8 @@ void preload(){
   ret = rdma_connect(id, &conn_param);
   pd = id->qp->pd;
   char* ptr = (char*)malloc(128);
-
-
+  
+  
   // change to true to use implicit ODP.
   bool useodp = false;
 
@@ -85,13 +85,19 @@ void preload(){
 }
 
 int main(int argc, char* argv[]){
-
   preload();
   char* secret = (char*)malloc(128);
+  
+  preload();
+  char* another= (char*)malloc(128);
   
   while(true){
      printf("Enter secret: ");
      int readb = scanf ("%100s",secret);
+     assert(readb!=EOF);
+     
+     printf("Enter another secret: ");
+     readb = scanf ("%100s",another);
      assert(readb!=EOF);
   }
 
