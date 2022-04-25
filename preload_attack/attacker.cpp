@@ -105,19 +105,16 @@ int main(int argc, char* argv[]){
  
   struct ibv_pd *pd = server->create_pd();
 
-
-
-  VerbsEP* ep = server->acceptEP(&attr,&conn_param,pd);
-
-
   while (true) {
-    printf("Waiting for new memory information from victim\n");
+    printf("Waiting for connection from victim\n");
+    VerbsEP* ep = server->acceptEP(&attr,&conn_param,pd);
     char* ptr = (char*)malloc(4096);
     struct ibv_mr * mr = ep->reg_mem(ptr,4096);
     
     ep->post_recv(0,  mr);
     
     struct ibv_wc wc;
+    printf("Waiting for new memory information from victim\n");
     while( ep->poll_recv_completion(&wc) == 0){
     
     }
