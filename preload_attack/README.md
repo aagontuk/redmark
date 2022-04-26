@@ -57,5 +57,6 @@ make
 Then run the victim program with malicious malloc library:
 ```
 make
+LD_PRELOAD=./malmalloc.so victim_malloc
 LD_PRELOAD=./malmalloc.so cat secrete_file
 ```
