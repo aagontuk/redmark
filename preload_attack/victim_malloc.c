@@ -1,18 +1,13 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <assert.h>
 
 int main(int argc, char *argv[]) {
-  char *buf = (char *)malloc(128);
-  buf[0] = 'S';
-  buf[1] = 'E';
-  buf[2] = 'C';
-  buf[3] = 'R';
-  buf[4] = 'E';
-  buf[5] = 'T';
-  buf[6] = 0;
-  printf("%s\n", buf);
-  free(buf);
+  char *secret = (char *)malloc(128);
   while(1) {
-  
+     printf("Enter secret: ");
+     int readb = scanf ("%100s",secret);
+     assert(readb!=EOF);
   }
 }
