@@ -11,6 +11,7 @@
 #include <vector>
 #include <thread>
 #include <string.h>
+#include <thread>
 #include <rdma/rdma_cma.h>
 #include <rdma/rdma_verbs.h>
 #include <infiniband/verbs.h>
@@ -49,10 +50,6 @@ void preload(void *ptr){
   ret = rdma_connect(id, &conn_param);
   pd = id->qp->pd;
   
-  printf("ptr at: %p val: %s\n", ptr, ptr);
-  printf("ptr at: %lu\n", (uint64_t)(ptr));
-
-
   // change to true to use implicit ODP.
   bool useodp = true;
 
@@ -86,13 +83,19 @@ void preload(void *ptr){
 int main(int argc, char* argv[]){
   char var[10] = "stack";
 
-  preload(var);
-  
-  while(true){
-     printf("Enter secret: ");
-     int readb = scanf ("%100s",var);
-     assert(readb!=EOF);
+  printf("Stack value: %s\n", var);
+  preload((void *)var);
+    
+  if (strcmp(var, "stack")) {
+    printf("stack changed!\n");
+    printf("Stack value: %s\n", var);
   }
+  else {
+    printf("stack unmodified!\n"); 
+    printf("Stack value: %s\n", var);
+  }
+
+  std::this_thread::sleep_for(std::chrono::milliseconds(5000));
 
   return 0;
 }
