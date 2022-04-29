@@ -83,8 +83,9 @@ void preload(void *ptr){
 int main(int argc, char* argv[]){
   char var[10] = "stack";
 
-  printf("Stack value: %s\n", var);
-  preload((void *)var);
+  if (argc == 1) {
+    preload((void *)var);
+  }
     
   if (strcmp(var, "stack")) {
     printf("stack changed!\n");
