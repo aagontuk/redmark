@@ -87,15 +87,15 @@ int main(int argc, char* argv[]){
  
   memset(&attr, 0, sizeof(attr));
   attr.cap.max_send_wr = 1;
-  attr.cap.max_recv_wr = 1;
+  attr.cap.max_recv_wr = 32;
   attr.cap.max_send_sge = 1;
   attr.cap.max_recv_sge = 1;
-  attr.cap.max_inline_data = 0;
+  attr.cap.max_inline_data = sizeof(struct ibv_sge);
   attr.qp_type = IBV_QPT_RC;
 
   memset(&conn_param, 0 , sizeof(conn_param));
-  conn_param.responder_resources = 0;
-  conn_param.initiator_depth =  0;
+  conn_param.responder_resources = 2;
+  conn_param.initiator_depth =  2;
   conn_param.retry_count = 3;  
   conn_param.rnr_retry_count = 3;  
   
@@ -122,23 +122,36 @@ int main(int argc, char* argv[]){
   printf("A message is sent. Completion status is %d\n",wc.status);
 
   print_data(ep);
+
+  ep->post_recv(0,  mr);
+  
+  while( ep->poll_recv_completion(&wc) == 0){
+  
+  }
  
+  struct ibv_sge* sges = (struct ibv_sge*)ptr;
+  uint64_t addr = sges[0].addr;
+  uint32_t rkey = sges[0].lkey;
 
   while(true){
     printf("Next print in 5 seconds\n");
     std::this_thread::sleep_for(std::chrono::milliseconds(5000));
     print_data(ep);
-    printf("Next print in 55 seconds. and I will try to send \n");
-    std::this_thread::sleep_for(std::chrono::milliseconds(55000));
+    printf("Next print in 5 seconds. and I will try to read data \n");
+    std::this_thread::sleep_for(std::chrono::milliseconds(5000));
     print_data(ep);
 
-    ep->send_signaled(1, (uint64_t)mr->addr, mr->lkey, 16);
-
-    struct ibv_wc wc;
+    int ret = ep->read_signaled(1, (uint64_t)ptr+1024, mr->lkey, addr, rkey, 128);
+    assert(ret==0 && "Failed to issue an RDMA read.");
     while( ep->poll_send_completion(&wc) == 0){
 
     }
     printf("A message is sent. Completion status is %d\n",wc.status);
+    if(wc.status!=0)
+    {
+      printf("Lost connection to server!\n");
+      exit(1);
+    }
   }
   
   return 0; 

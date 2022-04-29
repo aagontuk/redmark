@@ -141,7 +141,7 @@ int main(int argc, char** argv){
 	uint32_t psn = 2;
 
 	if(argc > 6){
-		qpn = atoi (argv[5]);
+		qpn = strtoull(argv[5], NULL, 16);
 		psn = atoi (argv[6]);
 	} else{
      return 0;
@@ -150,8 +150,8 @@ int main(int argc, char** argv){
 	if(argc > 8){ // then rdma write
 		total_paket_size+= sizeof(struct rxe_reth);
 		icrc=icrc+4;
-		uint64_t va = atol(argv[7]);
-		uint32_t rkey = atoi(argv[8]);
+		uint64_t va = strtoull(argv[7], NULL, 16);
+		uint32_t rkey = strtoull(argv[8], NULL, 16);
 		reth->va = htonll(va);
 		reth->rkey = htonl(rkey);
 		reth->len = htonl(payloadsize-padcount);  

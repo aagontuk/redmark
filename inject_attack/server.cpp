@@ -72,7 +72,7 @@ void print_data(VerbsEP *ep,struct ibv_mr *mr){
    }
    struct sockaddr * addr = rdma_get_peer_addr (ep->id);
    in_addr ippp = ((sockaddr_in*)addr)->sin_addr;
-   printf("run to hack me: sudo ./spoofv2 16 1 %s %s %u %u %lu %u\n", inet_ntoa(ippp), myip,ep->qp->qp_num, attr.rq_psn, (uint64_t)((char*)mr->addr+1024),mr->rkey);
+   printf("Source Ip:%s Destination ip:%s QP:%x PSN:%u Addr:%p rkey:%x\n", inet_ntoa(ippp), myip,ep->qp->qp_num, attr.rq_psn, (void *)((char*)mr->addr+1024),mr->rkey);
   }
 }
 
@@ -93,15 +93,15 @@ int main(int argc, char* argv[]){
  
   memset(&attr, 0, sizeof(attr));
   attr.cap.max_send_wr = 1;
-  attr.cap.max_recv_wr = 16;
+  attr.cap.max_recv_wr = 32;
   attr.cap.max_send_sge = 1;
   attr.cap.max_recv_sge = 1;
-  attr.cap.max_inline_data = 0;
+  attr.cap.max_inline_data = sizeof(struct ibv_sge);
   attr.qp_type = IBV_QPT_RC;
 
   memset(&conn_param, 0 , sizeof(conn_param));
-  conn_param.responder_resources = 0;
-  conn_param.initiator_depth = 0;
+  conn_param.responder_resources = 2;
+  conn_param.initiator_depth = 2;
   conn_param.retry_count = 3; // TODO
   conn_param.rnr_retry_count = 3; // TODO 
  
@@ -124,15 +124,34 @@ int main(int argc, char* argv[]){
   
   print_data(ep,mr);
 
+  struct ibv_sge* sges = (struct ibv_sge*)ptr;
+  sges[0].addr = (uint64_t)(ptr);
+  sges[0].lkey = mr->rkey;
+  {
+      struct ibv_sge sge;
+      sge.addr = sges[0].addr;
+      sge.length = sizeof(struct ibv_sge);
+      sge.lkey = 0 ;
+      struct ibv_send_wr wr, *bad;
+
+      wr.wr_id = 0;
+      wr.next = NULL;
+      wr.sg_list = &sge;
+      wr.num_sge = 1;
+      wr.opcode = IBV_WR_SEND;
+      wr.send_flags = IBV_SEND_INLINE | IBV_SEND_SIGNALED;
+      int ret = ibv_post_send(ep->qp, &wr, &bad);
+      assert(ret==0 && "Failed to send memory information to the attacker");
+  }
 
   struct ibv_wc wc;
   while(true){
-    int ret = ep->poll_recv_completion(&wc);
-    if(ret!=0){
+    ep->post_recv(1,  mr);
+    ep->poll_recv_completion(&wc);
       printf("Received message. status: %d. opcode: %d\n",wc.status,wc.opcode);
-    }
+
     if(*(ptr+1024)==0){
-      printf("memory is corrupted\n");
+      printf("memory is corrupted!!!\n");
     }
     std::this_thread::sleep_for(std::chrono::milliseconds(5000));
     print_data(ep,mr);

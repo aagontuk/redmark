@@ -115,7 +115,7 @@ uint32_t rxe_icrc_hdr(uint8_t *packet, uint16_t total_paket_size)
 
  
 
-char *if_name = "enp1s0"; // the name of the interface to use for injection
+const char *if_name = "ens1f1"; // the name of the interface to use for injection
 uint8_t if_addr[ETH_ALEN] =  { 0x00, 0x02, 0xc9, 0x32, 0x07, 0xa0 };  // ethernet address of the source
 uint8_t dest_addr[ETH_ALEN] = { 0x00, 0x02, 0xc9, 0x34, 0xb2, 0x80 };  // ethernet address of the destination
 
